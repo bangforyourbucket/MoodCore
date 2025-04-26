@@ -1,0 +1,127 @@
+import os
+import sys
+import csv
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import Image, ImageTk
+import pygame
+
+# ---------------------- Open Main App ---------------------- #
+def open_main_app():
+    new_root = tk.Tk()
+    app = MoodCoreApp(new_root)
+    new_root.mainloop()
+
+# ---------------------- Login Window ---------------------- #
+class LoginWindow:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("MoodCore - Login or Sign Up")
+
+        self.username_var = tk.StringVar()
+        self.password_var = tk.StringVar()
+        self.show_password_var = tk.BooleanVar()
+        self.remember_me_var = tk.BooleanVar()
+
+        self.build_login_or_signup()
+        self.load_remembered_user()
+
+    def build_login_or_signup(self):
+        ttk.Label(self.root, text="Login or Sign Up", font=("Arial", 16)).pack(pady=10)
+
+        ttk.Label(self.root, text="Username:").pack(pady=5)
+        self.username_entry = ttk.Entry(self.root, textvariable=self.username_var)
+        self.username_entry.pack(pady=5)
+
+        ttk.Label(self.root, text="Password:").pack(pady=5)
+        self.password_entry = ttk.Entry(self.root, textvariable=self.password_var, show="*")
+        self.password_entry.pack(pady=5)
+
+        ttk.Checkbutton(self.root, text="Show Password", variable=self.show_password_var, command=self.toggle_password).pack(pady=2)
+        ttk.Checkbutton(self.root, text="Remember Me", variable=self.remember_me_var).pack(pady=2)
+
+        ttk.Button(self.root, text="Continue", command=self.login_or_signup).pack(pady=10)
+
+        self.root.after(100, lambda: self.username_entry.focus())
+
+    def toggle_password(self):
+        if self.show_password_var.get():
+            self.password_entry.config(show="")
+        else:
+            self.password_entry.config(show="*")
+
+    def login_or_signup(self):
+        username = self.username_var.get().strip()
+        password = self.password_var.get().strip()
+
+        if not username or not password:
+            messagebox.showerror("Error", "Username and Password cannot be empty.")
+            return
+
+        users = {}
+        if os.path.exists("user_credentials.csv"):
+            with open("user_credentials.csv", mode="r", newline="") as file:
+                reader = csv.DictReader(file)
+                for row in reader:
+                    users[row["username"]] = row["password"]
+
+        if username in users:
+            # Try to log in
+            if users[username] == password:
+                messagebox.showinfo("Success", "Login successful!")
+                self.save_remembered_user()
+                self.root.destroy()
+                open_main_app()
+            else:
+                messagebox.showerror("Error", "Incorrect password.")
+        else:
+            # Sign up new user
+            file_exists = os.path.exists("user_credentials.csv")
+            with open("user_credentials.csv", mode="a", newline="") as file:
+                fieldnames = ["username", "password"]
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow({"username": username, "password": password})
+            messagebox.showinfo("Success", "Account created and logged in!")
+            self.save_remembered_user()
+            self.root.destroy()
+            open_main_app()
+
+    def save_remembered_user(self):
+        if self.remember_me_var.get():
+            with open("remember_me.txt", "w") as f:
+                f.write(self.username_var.get())
+        else:
+            if os.path.exists("remember_me.txt"):
+                os.remove("remember_me.txt")
+
+    def load_remembered_user(self):
+        if os.path.exists("remember_me.txt"):
+            with open("remember_me.txt", "r") as f:
+                username = f.read().strip()
+                self.username_var.set(username)
+                self.remember_me_var.set(True)
+
+# ---------------------- MoodCore App ---------------------- #
+from mood_core import MoodCoreApp
+
+# ---------------------- Main Entry ---------------------- #
+if __name__ == "__main__":
+    root = tk.Tk()
+
+    # Set App Icon
+    try:
+        icon_path = os.path.join("resources", "app.icns")
+        if os.path.exists(icon_path):
+            icon_image = Image.open(icon_path)
+            icon_photo = ImageTk.PhotoImage(icon_image)
+            root.iconphoto(False, icon_photo)
+    except Exception as e:
+        print(f"Failed to set icon: {e}")
+
+    app = LoginWindow(root)
+    root.mainloop()
