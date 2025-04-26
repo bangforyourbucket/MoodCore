@@ -1,0 +1,294 @@
+import os
+import sys
+import csv
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import Image, ImageTk
+import pygame
+
+class MoodCoreApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("MoodCore - Recovery Tracker")
+        self.entries = []
+        self.font_size = 11
+
+        self.bg_color = "#EFFFFF"
+        self.primary_color = "#62C3FF"
+        self.accent_color = "#57B847"
+        self.highlight_color = "#F0D253"
+        self.button_color = "#50C787"
+        self.warning_color = "#F89553"
+
+        self.main_frame = ttk.Frame(self.root, padding="12")
+        self.main_frame.grid(row=0, column=0, sticky="NSEW")
+
+        self.setup_styles()
+        self.create_widgets()
+        self.setup_resources()
+        self.load_entries_from_csv()
+
+    def setup_styles(self):
+        self.style = ttk.Style(self.root)
+        self.style.theme_use('clam')
+
+        self.root.configure(bg=self.bg_color)
+        self.style.configure("TFrame", background=self.bg_color)
+        self.style.configure("TLabel", background=self.bg_color, foreground="#333", font=("Arial", self.font_size))
+        self.style.configure("TButton", background=self.button_color, foreground="white", font=("Arial", self.font_size), padding=6)
+        self.style.map("TButton", background=[('active', self.primary_color)], foreground=[('active', 'white')])
+        self.style.configure("TEntry", font=("Arial", self.font_size))
+
+    def set_app_icons(self):
+        try:
+            icon_path = os.path.join("resources", "app.png")
+            if os.path.exists(icon_path):
+                icon_image = Image.open(icon_path)
+                icon_photo = ImageTk.PhotoImage(icon_image)
+                self.root.iconphoto(False, icon_photo)
+        except Exception as e:
+            print(f"Failed to set icon: {e}")
+
+    def setup_resources(self):
+        self.set_app_icons()
+
+        music_path = os.path.join("resources", "music.mp3")
+        if os.path.exists(music_path):
+            try:
+                pygame.mixer.init()
+                pygame.mixer.music.load(music_path)
+                pygame.mixer.music.play(-1)
+            except pygame.error as e:
+                print(f"Pygame music error: {e}")
+        else:
+            print("Music file not found.")
+
+    def submit_entry(self):
+        mood = self.mood_var.get()
+        substance = self.substance_var.get().strip()
+        notes = self.notes_entry.get("1.0", tk.END).strip()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if not (1 <= mood <= 10):
+            messagebox.showerror("Error", "Mood must be between 1 and 10.")
+            return
+
+        if substance.lower() not in ["yes", "no"]:
+            messagebox.showerror("Error", "Substance use must be 'Yes' or 'No'.")
+            return
+
+        bg_color = "#FFCCCC" if mood <= 5 else "#CCFFCC"
+
+        entry = {
+            "timestamp": timestamp,
+            "mood": mood,
+            "substance_use": substance,
+            "notes": notes,
+            "bg_color": bg_color
+        }
+        self.entries.append(entry)
+        self.save_entries_to_csv()
+        self.clear_inputs()
+        self.show_notification("Entry saved!")
+
+    def save_entries_to_csv(self):
+        with open("entries.csv", mode="w", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=["timestamp", "mood", "substance_use", "notes"])
+            writer.writeheader()
+            for entry in self.entries:
+                writer.writerow({
+                    "timestamp": entry["timestamp"],
+                    "mood": entry["mood"],
+                    "substance_use": entry["substance_use"],
+                    "notes": entry["notes"]
+                })
+
+    def load_entries_from_csv(self):
+        if not os.path.exists("entries.csv"):
+            return
+        with open("entries.csv", mode="r") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                mood = int(row['mood'])
+                bg_color = "#FFCCCC" if mood <= 5 else "#CCFFCC"
+                self.entries.append({
+                    "timestamp": row['timestamp'],
+                    "mood": mood,
+                    "substance_use": row['substance_use'],
+                    "notes": row['notes'],
+                    "bg_color": bg_color
+                })
+
+    def show_notification(self, message):
+        self.notification_label.configure(text=message)
+
+    def view_entries(self):
+        view_window = tk.Toplevel(self.root)
+        view_window.title("View Entries")
+        view_window.configure(bg=self.bg_color)
+
+        for idx, entry in enumerate(self.entries):
+            entry_frame = ttk.Frame(view_window, padding="12")
+            entry_frame.grid(row=idx, column=0, sticky="NSEW", pady=2)
+            entry_frame.configure(background=entry['bg_color'])
+
+            entry_text = f"{entry['timestamp']} | Mood: {entry['mood']} | Substance Use: {entry['substance_use']}\nNotes: {entry['notes']}\n{'-'*50}\n"
+            label = ttk.Label(entry_frame, text=entry_text)
+            label.grid(row=0, column=0, sticky="W", padx=5, pady=5)
+
+    def create_widgets(self):
+        self.main_frame = ttk.Frame(self.root, padding="12")
+        self.main_frame.grid(row=0, column=0, sticky="NSEW")
+
+        ttk.Label(self.main_frame, text="Mood (1-10):").grid(row=0, column=0, sticky="W")
+        self.mood_var = tk.IntVar()
+        self.mood_entry = ttk.Entry(self.main_frame, textvariable=self.mood_var)
+        self.mood_entry.grid(row=0, column=1, sticky="EW", pady=2)
+
+        ttk.Label(self.main_frame, text="Substance Use (Yes/No):").grid(row=1, column=0, sticky="W")
+        self.substance_var = tk.StringVar()
+        self.substance_entry = ttk.Entry(self.main_frame, textvariable=self.substance_var)
+        self.substance_entry.grid(row=1, column=1, sticky="EW", pady=2)
+
+        ttk.Label(self.main_frame, text="Notes:").grid(row=2, column=0, sticky="W")
+        self.notes_entry = tk.Text(self.main_frame, height=4, font=("Arial", self.font_size))
+        self.notes_entry.grid(row=2, column=1, sticky="EW", pady=2)
+
+        button_frame = ttk.Frame(self.main_frame)
+        button_frame.grid(row=3, column=0, columnspan=2, pady=10)
+
+        self.submit_button = ttk.Button(button_frame, text="Submit Entry", command=self.submit_entry)
+        self.submit_button.grid(row=0, column=0, padx=5, pady=5)
+
+        self.view_button = ttk.Button(button_frame, text="View Entries", command=self.view_entries)
+        self.view_button.grid(row=0, column=1, padx=5, pady=5)
+
+        self.export_button = ttk.Button(button_frame, text="Export to CSV", command=self.export_to_csv)
+        self.export_button.grid(row=0, column=2, padx=5, pady=5)
+
+        self.graph_button = ttk.Button(button_frame, text="Show Mood Graph", command=self.show_graph)
+        self.graph_button.grid(row=1, column=0, padx=5, pady=5)
+
+        self.font_button = ttk.Button(button_frame, text="Adjust Font Size", command=self.adjust_font_size)
+        self.font_button.grid(row=1, column=1, padx=5, pady=5)
+
+        self.search_button = ttk.Button(button_frame, text="Search Entries", command=self.search_entries)
+        self.search_button.grid(row=1, column=2, padx=5, pady=5)
+
+        self.notification_label = ttk.Label(self.main_frame, text="", font=("Arial", self.font_size), foreground=self.accent_color)
+        self.notification_label.grid(row=4, column=0, columnspan=2)
+
+        self.root.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_columnconfigure(1, weight=1)
+
+        ttk.Label(self.main_frame, text="Music Volume:").grid(row=5, column=0, sticky="W", pady=5)
+        self.volume_slider = tk.Scale(self.main_frame, from_=0, to=1, resolution=0.01, orient="horizontal", command=self.adjust_volume)
+        self.volume_slider.set(0.5)
+        self.volume_slider.grid(row=5, column=1, sticky="EW", pady=5)
+
+    def adjust_volume(self, value):
+        volume = float(value)
+        pygame.mixer.music.set_volume(volume)
+
+    def clear_inputs(self):
+        self.mood_var.set(0)
+        self.substance_var.set("")
+        self.notes_entry.delete("1.0", tk.END)
+
+    def export_to_csv(self):
+        if not self.entries:
+            messagebox.showerror("Error", "No entries to export.")
+            return
+
+        file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV files", "*.csv")])
+        if file_path:
+            with open(file_path, mode='w', newline='') as file:
+                writer = csv.DictWriter(file, fieldnames=["timestamp", "mood", "substance_use", "notes"])
+                writer.writeheader()
+                for entry in self.entries:
+                    writer.writerow({
+                        "timestamp": entry["timestamp"],
+                        "mood": entry["mood"],
+                        "substance_use": entry["substance_use"],
+                        "notes": entry["notes"]
+                    })
+            self.show_notification("Exported to CSV!")
+
+    def show_graph(self):
+        if not self.entries:
+            messagebox.showerror("Error", "No data to plot.")
+            return
+
+        moods = [entry['mood'] for entry in self.entries]
+        dates = [datetime.strptime(entry['timestamp'], "%Y-%m-%d %H:%M:%S") for entry in self.entries]
+
+        graph_window = tk.Toplevel(self.root)
+        graph_window.title("Mood Graph")
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(dates, moods, marker='o', linestyle='-', color=self.accent_color)
+        ax.set_title('Mood Over Time')
+        ax.set_xlabel('Date')
+        ax.set_ylabel('Mood (1-10)')
+        ax.tick_params(axis='x', rotation=45)
+        fig.tight_layout()
+
+        canvas = FigureCanvasTkAgg(fig, master=graph_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(expand=True, fill="both")
+
+    def adjust_font_size(self):
+        def set_font():
+            try:
+                new_size = int(font_entry.get())
+                self.font_size = new_size
+                self.refresh_fonts()
+                font_window.destroy()
+            except ValueError:
+                messagebox.showerror("Error", "Enter a valid number.")
+
+        font_window = tk.Toplevel(self.root)
+        font_window.title("Adjust Font Size")
+
+        ttk.Label(font_window, text="New Font Size:").pack(pady=5)
+        font_entry = ttk.Entry(font_window)
+        font_entry.pack(pady=5)
+
+        ttk.Button(font_window, text="Apply", command=set_font).pack(pady=5)
+
+    def refresh_fonts(self):
+        for widget in self.main_frame.winfo_children():
+            if isinstance(widget, (ttk.Label, ttk.Button, ttk.Entry, tk.Text)):
+                widget.configure(font=("Arial", self.font_size))
+        self.notification_label.configure(font=("Arial", self.font_size))
+
+    def search_entries(self):
+        search_window = tk.Toplevel(self.root)
+        search_window.title("Search Entries")
+        search_window.configure(bg=self.bg_color)
+
+        search_var = tk.StringVar()
+        ttk.Label(search_window, text="Search Query:").pack(pady=5)
+        search_entry = ttk.Entry(search_window, textvariable=search_var)
+        search_entry.pack(pady=5)
+
+        results_text = tk.Text(search_window, wrap="word", height=15)
+        results_text.pack(pady=5, fill="both", expand=True)
+
+        def perform_search():
+            query = search_var.get().lower()
+            results_text.delete("1.0", tk.END)
+            for entry in self.entries:
+                if (query in entry['notes'].lower() or query in str(entry['mood']) or query in entry['substance_use'].lower()):
+                    result = f"{entry['timestamp']} | Mood: {entry['mood']} | Substance Use: {entry['substance_use']}\nNotes: {entry['notes']}\n{'-'*50}\n"
+                    results_text.insert(tk.END, result)
+
+        ttk.Button(search_window, text="Search", command=perform_search).pack(pady=5)
+
+def main_app():
+    root = tk.Tk()
+    app = MoodCoreApp(root)
+    root.mainloop()
