@@ -1,4 +1,6 @@
 # MoodCore
+You have to **unzip the file titled dist**!
+
 You can find the software in the **dist** subfolder of this folder.
 
 If MoodCore doesn’t open or you’re experiencing issues with running Python, please download IDLE. I’ve included it in the folder (python-3.13.3-macos11.pkg), but note that it may update.
